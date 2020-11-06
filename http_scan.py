@@ -123,7 +123,7 @@ def main():
     parser.add_argument('-c', '--code', required=False, type=int, nargs='+', default=[500, 501, 502, 503, 504, 505, 401, 402, 400], help='skip status code')
     parser.add_argument('-e', '--error', required=False, type=int, default=1, help='response packet error')
     parser.add_argument('-r', '--retry', required=False, type=int, default=1, help='Timeout reconnection')
-    parser.add_argument('-t', '--Threads', required=False, type=int, default=1, help='number of threads,default = 100')
+    parser.add_argument('-t', '--Threads', required=False, type=int, default=5, help='number of threads,default = 5')
     parser.add_argument('-o', '--output', required=False, default='url_out.txt', help='result')
     args = parser.parse_args()
     url_txt = args.url
