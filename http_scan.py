@@ -70,7 +70,7 @@ def process_data(lt, out_name, error_int, code_list, retry):
                 elif content_length > 1000000 or content_type in skip_content_type or bool(
                         re.search('text/plain', content_type)):
 
-                    iii = i + '\033[31m 该url为下载连接or纯文本\033[0m'
+                    iii = i + '  该url为下载连接or纯文本'
                     output_data(iii, out_name)
                     print("{}  可成功访问，该url为下载连接or纯文本".format(i))
 
