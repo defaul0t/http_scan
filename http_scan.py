@@ -102,7 +102,7 @@ def process_data(lt, out_name, error_int, code_list, retry):
                 i += 1
                 time.sleep(5)
                 if i == cs:
-                    print("{}  访问超时".format(i))
+                    print("访问超时！")
 
     return title_list, Content_Length_list
 
