@@ -8,3 +8,8 @@ python3 http_scan.py -u url.txt -c 404 403 -t 5 -r 1 -e 2 -o output.txt <br>
 
 
 ![http_scan](https://github.com/daichao66/http_scan/blob/main/http_scan.png)
+
+
+#### 更新日志(2020/11/10)
+
+多线程验证功能，输出功能优化
