@@ -27,3 +27,6 @@ python3 http_scan.py -u url.txt -c 404 403 -t 5 -r 1 -e 2 -o output.txt <br>
 上传了request_html书写的py脚本，已经间接解决了大部分问题，可以正常使用脚本过滤资产：<br>
 1.该库有模拟浏览器访问的render函数功能，解决了javascript带来的资产误识别<br>
 2.缺陷：未解决多线程冲突，似乎和render函数有关系，采用多进程容易崩溃，有大佬会的，联系我，学习交流下，微信：REMxMzIwMjIyMTQ3<br>
+
+#### 更新日志(2021/4/27)
+写了个用户探测HOST碰撞，检测隐藏内网资产的脚本........
