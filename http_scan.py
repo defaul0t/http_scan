@@ -1,25 +1,28 @@
 import requests
-import time
+import asyncio, time
 import re
 import argparse
 import sys
 import threading
-import html
-from requests_html import HTMLSession
+from requests_html import AsyncHTMLSession, HTMLSession
 import urllib3
+import openpyxl
+from pyppeteer import launch
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 skip_content_type = ['application/zip', 'application/octet-stream', 'application/msword', 'application/pdf']  # 过滤文件二进制
-code_list = [500, 501, 502, 503, 504, 505, 401, 402, 400]  # 过滤不能访问的http状态
+code_list = [500, 501, 502, 503, 504, 505]  # 过滤不能访问的http状态
 
 headers = {
     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:84.0) Gecko/20100101 Firefox/84.0'
 }
-skip_43 = [404, 403]
+skip_43 = [404, 403, 401, 410, 400]
+
 
 banner = '''
+           _                         
   _    _ _______ _______ _____   _____  _____          _   _ 
  | |  | |__   __|__   __|  __ \ / ____|/ ____|   /\   | \ | |
  | |__| |  | |     | |  | |__) | (___ | |       /  \  |  \| |
@@ -27,17 +30,9 @@ banner = '''
  | |  | |  | |     | |  | |     ____) | |____ / ____ \| |\  |
  |_|  |_|  |_|     |_|  |_|    |_____/ \_____/_/    \_\_| \_|
                                                  
-                       ___v 1.2___            author:default                  
+                       ___v 1.3___            author:default                    
 '''
 
-skip_title = ["信息提示", "汽车网", "分类信息", "安居客租房网", "分类信息门户", "乐享网", "人才网"]  # 跳过标题
-
-# Content_Length_list = []  # 响应包长度
-
-
-def requests_url(url):
-    res = requests.get(url=url, timeout=10, headers=headers, verify=False)
-    return res
 
 
 # 获取url列表
@@ -50,38 +45,28 @@ def get_url(url_txt):
 
 
 # 发送请求验证
-
+list = []
 title_list = []  # 标题
 Content_Length_list = []  # 响应包长度
+session = HTMLSession(verify=False)
 def process_data(lt, out_name, error_int, code_list, retry):
     # p_lt = []  # 最终结果列表
     # num = 0  # 测试url定位
-    Response_error = error_int  # 响应包误差波动值
+    Response_error = error_int  # 响应包误差波动值 /默认关闭
 
 
     for i in lt:
-        # num += 1
-        # print("正在测试第{}个url".format(num))
+
 
         try:
 
-            r = requests_url(i)
-            #
-            # pattern = re.compile(r'window.top.location.href')
-            # search_str = pattern.search(r.text)
-            #
-            # if bool(search_str):
-            #     pattern = re.compile(r'(?<= window\.top\.location\.href = ")(.+?)(?=";)')
-            #
-            #     red_url = pattern.search(r.text).group()
-            #
-            #     i = i + red_url
-            #     r = requests_url(i)
+            r = session.get(url=i, timeout=30, headers=headers,verify=False)
+
             content_length = len(r.content)
             print('')
             print(r.status_code)
             # print(content_length)
-            content_type = r.headers.get('content-type')
+            content_type = str(r.headers.get('content-type'))
 
             if r.status_code not in code_list:
                 if r.status_code in skip_43:   # 若想多搜集403or404资产建议关闭响应包筛选and content_length not in Content_Length_list:
@@ -103,21 +88,38 @@ def process_data(lt, out_name, error_int, code_list, retry):
                 elif r.status_code not in code_list:
                     r.encoding = r.apparent_encoding
 
-                    # print(r.encoding)
-                    # r.encoding = 'gbk'
                     content = r.text.replace('\r', '').replace('\n', '').replace(' ', '')
-                    # output_data(content, 'title.txt')
-                    # print(content)
-                    whether_title = bool(re.findall(r"(?<=<title)(.+?)(?=</title>)", content))
 
-                    if whether_title:
-                        title = re.findall('(?<=<title)(.+?)(?=</title>)', content)[0]
-                        print(title)
-                        reg = "高效|58盾|信息提示|汽车网|分类信息|安居客租房网|分类信息门户|乐享网|人才网|分类|二手车|车市|访问验证|天鹅到家|瓜子二手车直卖网|58汽车|驾校一点通"
-                        flag = bool(re.findall(reg, title))
-                        if flag:
+                    whether_title = bool(re.findall(r"(?<=><title>)(.+?)(?=</title>)", content))
+                    whether_title2 = bool(re.findall(r"(?<=<title>)(.+?)(?=</title>)", content))
+                    
+                    if whether_title or whether_title2:
+                        if whether_title:
+                            title = re.findall('(?<=><title>)(.+?)(?=</title>)', content)[0]
+                            if title == '':
+                                output_data(i, 'kong_title.txt')
+                        if whether_title2:
+                            title = re.findall('(?<=<title>)(.+?)(?=</title>)', content)[0]
+                    if content_length ==0:
+                        output_data(i,'kong_page.txt')
+                        continue
+                    if bool(r.html.find('title', first=True)):
+                        title = r.html.find('title', first=True).text
+                        if title == '':
+                            output_data(i, 'kong_title.txt')
                             continue
-                        if title not in title_list or content_length not in Content_Length_list:
+                        print(title)
+                        # print(title_list)
+                        reg = "Not Found|Apache Tomcat|IIS Windows Server|IIS7|IIS|Tomcat|Welcome"
+                        skip_title = "CDN|DNS"
+                        flag = bool(re.findall(reg, title))
+                        flag_skip = bool(re.findall(skip_title, title))
+                        if flag and flag_skip==False:
+                            output_data(i+'      '+title, '中间件首页.txt')
+                            continue
+
+                        # or content_length not in Content_Length_list
+                        if title not in title_list:
                             title_list.append(title)
                             for error in range(Response_error + 1):
                                 if error == 0:
@@ -126,55 +128,68 @@ def process_data(lt, out_name, error_int, code_list, retry):
                                     Content_Length_list.append(content_length + error)
                                     Content_Length_list.append(content_length - error)
                             print("{}  可成功访问".format(i))
+                            x_list = []
+                            x_list.append(i)
+                            x_list.append(title)
 
-                            output_data(i, out_name)
+                            list.append(x_list)
+
+                            output_data(i+'      '+title, out_name)
+
                         else:
                             print("\033[31m repeat\033[0m")
-                            output_data(i, 'repeat.txt')
+                            output_data(i+'      '+title, 'repeat.txt')
                             continue
                     else:
+
                         #写入检测是否需要执行js跳转，windows.location
-                            print("{}  可成功访问".format(i))
-
-                            output_data(i, '改url未检索到标题.txt')
-
-
+                        output_data(i, '改url未检索到标题.txt')
+                        continue
 
 
             else:
-                print("{}  不能成功访问,响应码为{}".format(i, r.status_code))
-                print('')
 
+
+                print("{}  不能成功访问,响应码为{}".format(i, r.status_code))
+                output_data(i, '50x.txt')
+                print('')
                 continue
 
 
         except:
-            cs = retry  # 设置重连次数
-            for c in range(cs):
-                c += 1
-                time.sleep(2)
-                if c == cs:
-                    print('')
-                    print("{}   访问超时".format(i))
-                    output_data(i, '访问超时.txt')
-                    continue
+            output_data(i, '访问超时.txt')
+            print("{}   访问超时".format(i))
+            time.sleep(0)
+            continue
 
-    return title_list, Content_Length_list
+
+    return title_list, Content_Length_list,list
 
 
 def output_data(i, out_name):
     with open(out_name, "a", encoding='utf-8') as f:
         f.write(i + "\n")
 
-    # print('')
+def write_excel_xlsx(path, sheet_name, value):
+    index = len(value)
+    workbook = openpyxl.Workbook()  # 新建工作簿（默认有一个sheet？）
+    sheet = workbook.active  # 获得当前活跃的工作页，默认为第一个工作页
+    sheet.column_dimensions['A'].width = 50.0
+    sheet.column_dimensions['B'].width = 40.0
+    sheet.title = sheet_name  # 给sheet页的title赋值
+    for i in range(0, index):
+        for j in range(0, len(value[i])):
+            sheet.cell(row=i + 1, column=j + 1, value=str(value[i][j]))  # 行，列，值 这里是从1开始计数的
+    workbook.save(path)  # 一定要保存
 
 
 def main():
+    #start = time.perf_counter()
     print(banner)
     parser = argparse.ArgumentParser(usage='python3 http_scan.py -u file.txt')
     parser.add_argument('-u', '--url', required=True, help='target url file')
     parser.add_argument('-c', '--code', required=False, type=int, nargs='+',
-                        default=[500, 501, 502, 503, 504, 505, 401, 402, 400], help='skip status code')
+                        default=[500, 501, 502, 503, 504, 505, 402, 405], help='skip status code')
     parser.add_argument('-e', '--error', required=False, type=int, default=1, help='response packet error')
     parser.add_argument('-r', '--retry', required=False, type=int, default=1, help='Timeout reconnection')
     parser.add_argument('-t', '--Threads', required=False, type=int, default=1, help='number of threads,default = 1')
@@ -204,8 +219,11 @@ def main():
     for thread in thread_list:
         thread.join()
 
+    #end = time.perf_counter()
+    #print('运行时间 : %s 秒' % (end - start))
     print('')
-    print("可成功访问的url已保存在{}文件中.".format(out_name))
+    write_excel_xlsx('url_out.xlsx', 'result', list)
+    print("可成功访问的url已保存在url_out.xlsx文件中")
     sys.exit()
 
 
